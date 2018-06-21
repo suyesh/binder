@@ -2,8 +2,13 @@ import React, { Component } from 'react';
 import {
   View,
   Animated,
-  PanResponder
+  PanResponder,
+  Dimensions
 } from 'react-native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width
+const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH
+const SWIPE_OUT_DURATION = 250
 
 class Deck extends Component {
   constructor(props){
@@ -14,16 +19,44 @@ class Deck extends Component {
       onPanResponderMove: (event, gesture ) => {
         position.setValue({ x: gesture.dx , y: gesture.dy })
       }, // When user is panning
-      onPanResponderRelease: () => {} // When user is removing finger
+      onPanResponderRelease: (event, gesture) => {
+        if (gesture.dx > SWIPE_THRESHOLD){
+          this.forceSwipe({direction: 'right'})
+        } else if (gesture.dx < -SWIPE_THRESHOLD) {
+          this.forceSwipe()
+        } else {
+          this.resetPosition({direction: 'left'})
+        }
+      } // When user is removing finger
     });
-    this.state = { panResponder, position }
+    this.panResponder = panResponder
+    this.position = position
+  }
+
+  forceSwipe = ({direction}) => {
+    let x = direction === 'right' ? SCREEN_WIDTH : -SCREEN_WIDTH
+    let y = 0
+    Animated.timing(this.position, {
+      toValue: { x,  y },
+      duration: SWIPE_OUT_DURATION
+    }).start();
   }
 
   getCardStyle = () => {
+    const rotate = this.position.x.interpolate({
+      inputRange: [ -SCREEN_WIDTH * 2.0, 0, SCREEN_WIDTH * 2.0 ],
+      outputRange: [ '-120deg', '0deg', '120deg']
+    })
     return {
-      ...this.state.position.getLayout(),
-      transform: [{ rotate: '45deg' }]
+      ...this.position.getLayout(),
+      transform: [{ rotate }]
     }
+  }
+
+  resetPosition = () => {
+    Animated.spring(this.position, {
+      toValue: { x: 0, y: 0 }
+    }).start();
   }
 
   renderCards = () => {
@@ -32,7 +65,7 @@ class Deck extends Component {
         return(
           <Animated.View
             key={ item.id }
-            { ...this.state.panResponder.panHandlers }
+            { ...this.panResponder.panHandlers }
             style={this.getCardStyle()}
             >
             { this.props.renderCard(item) }
